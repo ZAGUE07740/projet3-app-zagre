@@ -307,7 +307,7 @@ st.sidebar.markdown("---")
 # Sélection du nombre de pages
 pages = st.sidebar.selectbox(
     '📄 Nombre de pages à scraper',
-    options=list(range(1, 21)),
+    options=list(range(1, 201)),
     index=2,  # Par défaut 3 pages
     help="Sélectionnez le nombre de pages à scraper pour chaque catégorie"
 )
