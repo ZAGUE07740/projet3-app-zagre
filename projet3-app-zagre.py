@@ -376,7 +376,7 @@ if choices == '🧹 Scraper avec BeautifulSoup (nettoyage)':
                     )
                 else:
                     st.warning('🟠 Aucune donnée récupérée.')
-        if choices == "🗨️ Formulaire d'évaluation":
+if choices == "🗨️ Formulaire d'évaluation":
     st.markdown("## 🗨️ Formulaire d'évaluation externe")
     components.html(
         '<iframe src="https://ee.kobotoolbox.org/i/NN2REojo" width="800" height="600"></iframe>',
