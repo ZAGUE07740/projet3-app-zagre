@@ -923,7 +923,7 @@ else:  # Formulaire d'évaluation
         <div style='text-align: center; margin: 2rem 0;'>
             <h4>Évaluez cette application sur KoboToolbox</h4>
             <p>Votre feedback détaillé nous aide à améliorer l'application.</p>
-            <iframe src="https://ee.kobotoolbox.org/i/y3pfGxMz" width="100%" height="600" frameborder="0"></iframe>
+            <iframe src=https://ee.kobotoolbox.org/i/fBmPGz9P width="800" height="600"></iframe>
         </div>
     """, height=650)
 
