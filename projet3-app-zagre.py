@@ -10,6 +10,7 @@ import streamlit.components.v1 as components
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import matplotlib as mp
 import re
 import os
 import time
@@ -139,34 +140,41 @@ def scrape_with_beautifulsoup(url_base, category_name, pages, clean_data=True):
 
 # Fonction de nettoyage des données
 def clean_scraped_data(df):
-    """Nettoyer les données scrapées"""
+    """Nettoyer les données scrapées avec vérification des colonnes"""
     if df.empty:
         return df
-    
-    # Créer une copie pour éviter les modifications inattendues
+
     df_clean = df.copy()
-    
-    # Nettoyer les prix - extraire les chiffres
-    df_clean['prix_brut'] = df_clean['prix']
-    df_clean['prix_numerique'] = df_clean['prix'].str.replace(r'[^\d]', '', regex=True)
-    df_clean['prix_numerique'] = pd.to_numeric(df_clean['prix_numerique'], errors='coerce')
-    
-    # Nettoyer les adresses
-    df_clean['adresse'] = df_clean['adresse'].str.strip()
-    df_clean['adresse'] = df_clean['adresse'].str.title()
-    
-    # Nettoyer les types
-    df_clean['type'] = df_clean['type'].str.strip()
-    df_clean['type'] = df_clean['type'].str.title()
-    
-    # Ajouter des colonnes d'analyse
-    df_clean['a_prix'] = df_clean['prix_numerique'].notna()
-    df_clean['a_image'] = df_clean['image_lien'] != "Image non disponible"
-    
-    # Supprimer les doublons
-    df_clean = df_clean.drop_duplicates(subset=['type', 'prix', 'adresse'])
-    
+
+    if 'prix' in df_clean.columns:
+        df_clean['prix_brut'] = df_clean['prix']
+        df_clean['prix_numerique'] = df_clean['prix'].str.replace(r'[^\d]', '', regex=True)
+        df_clean['prix_numerique'] = pd.to_numeric(df_clean['prix_numerique'], errors='coerce')
+        df_clean['a_prix'] = df_clean['prix_numerique'].notna()
+    else:
+        df_clean['prix_brut'] = "Inconnu"
+        df_clean['prix_numerique'] = np.nan
+        df_clean['a_prix'] = False
+
+    if 'adresse' in df_clean.columns:
+        df_clean['adresse'] = df_clean['adresse'].str.strip().str.title()
+    else:
+        df_clean['adresse'] = "Adresse inconnue"
+
+    if 'type' in df_clean.columns:
+        df_clean['type'] = df_clean['type'].str.strip().str.title()
+    else:
+        df_clean['type'] = "Type inconnu"
+
+    if 'image_lien' in df_clean.columns:
+        df_clean['a_image'] = df_clean['image_lien'] != "Image non disponible"
+    else:
+        df_clean['a_image'] = False
+
+    df_clean = df_clean.drop_duplicates(subset=['type', 'prix_brut', 'adresse'])
+
     return df_clean
+
 
 # Fonction pour convertir le DataFrame en CSV
 def convert_df_to_csv(df):
@@ -183,16 +191,20 @@ def save_data_to_csv(df, filename):
 
 # Fonction pour charger les données depuis un fichier CSV
 def load_data_from_csv(filepath):
-    """Charger les données depuis un fichier CSV"""
+    """Charger les données depuis un fichier CSV avec gestion des erreurs"""
     try:
         if os.path.exists(filepath):
-            return pd.read_csv(filepath)
+            return pd.read_csv(filepath, encoding='utf-8')
         else:
-            st.error(f"Le fichier {filepath} n'existe pas.")
+            st.warning(f"📂 Fichier introuvable : {filepath}")
             return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Erreur lors du chargement du fichier: {str(e)}")
+    except pd.errors.ParserError as e:
+        st.error(f"❌ Erreur de format dans {filepath} : {str(e)}")
         return pd.DataFrame()
+    except Exception as e:
+        st.error(f"❌ Erreur inconnue lors du chargement de {filepath} : {str(e)}")
+        return pd.DataFrame()
+
 
 # Fonction pour créer le dashboard
 def create_dashboard(df):
@@ -346,8 +358,8 @@ if choices == 'Télécharger données pré-scrapées':
 st.sidebar.markdown("---")
 st.sidebar.markdown("""
     <div style='text-align: center; color: #666; font-size: 0.8rem;'>
-        <p>Développé avec ❤️ par votre équipe</p>
-        <p>© 2024 Coinafrique Scraper</p>
+        <p>Emmanuel ZAGRE</p>
+        <p>© 2025 Analyse & Scraping CoinAfrique</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -816,21 +828,122 @@ elif choices == 'Dashboard des données nettoyées':
     
     else:  # Combiner toutes les sources
         st.markdown("### 📊 Dashboard combiné")
-        if st.button('🚀 Générer Dashboard Complet', key='generate_full_dashboard'):
-            # Essayer de charger toutes les données disponibles
-            all_sources = []
+        def create_dashboard(df):
+            """Créer un dashboard interactif adapté à l'application CoinAfrique"""
+            if df.empty:
+                st.warning('⚠️ Aucune donnée disponible pour le dashboard.')
+                return
+
+            st.markdown("""
+                <h2 style='text-align: center; color: #2E86AB; margin: 2rem 0;'>
+                    📊 DASHBOARD ANALYTIQUE
+                </h2>
+            """, unsafe_allow_html=True)
+
+            # 🔢 Métriques principales
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric("📝 Total articles", len(df))
+
+            with col2:
+                if 'prix_numerique' in df.columns and df['prix_numerique'].notna().any():
+                    st.metric("💰 Prix moyen", f"{df['prix_numerique'].mean():,.0f} FCFA")
+                else:
+                    st.metric("💰 Prix moyen", "N/A")
+
+            with col3:
+                if 'categorie' in df.columns:
+                    st.metric("🏷️ Catégories", df['categorie'].nunique())
+                else:
+                    st.metric("🏷️ Catégories", "N/A")
+
+            with col4:
+                if 'adresse' in df.columns:
+                    st.metric("🏙️ Villes", df['adresse'].nunique())
+                else:
+                    st.metric("🏙️ Villes", "N/A")
+
+            # 📈 Graphiques
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if 'categorie' in df.columns:
+                    fig_cat = px.pie(
+                        df,
+                        names='categorie',
+                        title='Répartition par catégorie',
+                        color_discrete_sequence=px.colors.qualitative.Set3
+                    )
+                    fig_cat.update_layout(height=400)
+                    st.plotly_chart(fig_cat, use_container_width=True)
+
+            with col2:
+                if 'adresse' in df.columns:
+                    top_villes = df['adresse'].value_counts().head(10)
+                    fig_villes = px.bar(
+                        x=top_villes.values,
+                        y=top_villes.index,
+                        orientation='h',
+                        title='Top 10 des villes',
+                        labels={'x': 'Nombre d\'articles', 'y': 'Ville'}
+                    )
+                    fig_villes.update_layout(height=400)
+                    st.plotly_chart(fig_villes, use_container_width=True)
+
+            # 📊 Analyse des prix
+            if 'prix_numerique' in df.columns and df['prix_numerique'].notna().any():
+                prix_valides = df.dropna(subset=['prix_numerique'])
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    if 'categorie' in df.columns:
+                        fig_box = px.box(
+                            prix_valides,
+                            x='categorie',
+                            y='prix_numerique',
+                            title='Distribution des prix par catégorie'
+                        )
+                        fig_box.update_layout(height=400)
+                        fig_box.update_xaxes(tickangle=45)
+                        st.plotly_chart(fig_box, use_container_width=True)
+
+                with col2:
+                    fig_hist = px.histogram(
+                        prix_valides,
+                        x='prix_numerique',
+                        nbins=30,
+                        title='Distribution des prix'
+                    )
+                    fig_hist.update_layout(height=400)
+                    st.plotly_chart(fig_hist, use_container_width=True)
+            if all_sources:
+                combined_df = pd.concat(all_sources, ignore_index=True).drop_duplicates()
+                cleaned_df = clean_scraped_data(combined_df)
+
+        if 'categorie' not in cleaned_df.columns:
+            st.warning("⚠️ La colonne 'categorie' est absente. Le dashboard ne peut pas être généré.")
+            st.dataframe(cleaned_df.head())
+        else:
+            create_dashboard(cleaned_df)  # 
+            
+
             
             # Fichiers possibles
+            base_path = "C:/Users/ZAGRE/OneDrive/Desktop/ZAGRE-Emmanuel-DC/data"
+
             possible_files = [
-                ('data/vetements_homme.csv', 'Vêtements Homme'),
-                ('data/chaussures_homme.csv', 'Chaussures Homme'),
-                ('data/vetements_enfants.csv', 'Vêtements Enfants'),
-                ('data/chaussures_enfants.csv', 'Chaussures Enfants'),
-                ('vetements_homme_cleaned.csv', 'Vêtements Homme (Nettoyées)'),
-                ('chaussures_homme_cleaned.csv', 'Chaussures Homme (Nettoyées)'),
-                ('vetements_enfants_cleaned.csv', 'Vêtements Enfants (Nettoyées)'),
-                ('chaussures_enfants_cleaned.csv', 'Chaussures Enfants (Nettoyées)')
+                (f"{base_path}/vetements_homme.csv", "Vêtements Homme"),
+                (f"{base_path}/chaussures_homme.csv", "Chaussures Homme"),
+                (f"{base_path}/vetements_enfants.csv", "Vêtements Enfants"),
+                (f"{base_path}/chaussures_enfants.csv", "Chaussures Enfants"),
+                (f"{base_path}/vetements_homme_cleaned.csv", "Vêtements Homme (Nettoyées)"),
+                (f"{base_path}/chaussures_homme_cleaned.csv", "Chaussures Homme (Nettoyées)"),
+                (f"{base_path}/vetements_enfants_cleaned.csv", "Vêtements Enfants (Nettoyées)"),
+                (f"{base_path}/chaussures_enfants_cleaned.csv", "Chaussures Enfants (Nettoyées)")
             ]
+
             
             for filepath, category in possible_files:
                 df = load_data_from_csv(filepath)
@@ -857,75 +970,23 @@ else:  # Formulaire d'évaluation
         </div>
     """, unsafe_allow_html=True)
     
-    # Section d'évaluation locale
-    st.markdown("### 🌟 Évaluation rapide")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Formulaire d'évaluation local
-        with st.form("evaluation_form"):
-            st.markdown("**Évaluez l'application :**")
-            
-            note_generale = st.slider("Note générale", 1, 5, 4)
-            facilite_utilisation = st.slider("Facilité d'utilisation", 1, 5, 4)
-            qualite_donnees = st.slider("Qualité des données", 1, 5, 4)
-            vitesse_scraping = st.slider("Vitesse de scraping", 1, 5, 3)
-            
-            fonctionnalites = st.multiselect(
-                "Fonctionnalités les plus utiles",
-                ["Scraping BeautifulSoup", "Scraping Web Scraper", "Dashboard", "Téléchargement CSV", "Interface utilisateur"]
-            )
-            
-            commentaires = st.text_area("Commentaires et suggestions")
-            
-            submitted = st.form_submit_button("📤 Soumettre l'évaluation")
-            
-            if submitted:
-                st.success("✅ Merci pour votre évaluation!")
-                
-                # Afficher un résumé
-                st.markdown("### 📊 Résumé de votre évaluation")
-                st.write(f"**Note générale:** {note_generale}/5")
-                st.write(f"**Facilité d'utilisation:** {facilite_utilisation}/5")
-                st.write(f"**Qualité des données:** {qualite_donnees}/5")
-                st.write(f"**Vitesse de scraping:** {vitesse_scraping}/5")
-                
-                if fonctionnalites:
-                    st.write(f"**Fonctionnalités préférées:** {', '.join(fonctionnalites)}")
-                
-                if commentaires:
-                    st.write(f"**Commentaires:** {commentaires}")
-    
-    with col2:
-        # Statistiques d'utilisation simulées
-        st.markdown("### 📈 Statistiques d'utilisation")
-        
-        stats_df = pd.DataFrame({
-            'Fonctionnalité': ['Scraping BS4', 'Scraping Web', 'Dashboard', 'Téléchargement', 'Évaluation'],
-            'Utilisations': [150, 120, 200, 180, 45],
-            'Satisfaction': [4.2, 3.8, 4.5, 4.1, 4.3]
-        })
-        
-        # Graphique des utilisations
-        fig_usage = px.bar(stats_df, x='Fonctionnalité', y='Utilisations', title='Nombre d\'utilisations par fonctionnalité')
-        st.plotly_chart(fig_usage, use_container_width=True)
-        
-        # Graphique de satisfaction
-        fig_satisfaction = px.bar(stats_df, x='Fonctionnalité', y='Satisfaction', title='Satisfaction par fonctionnalité')
-        st.plotly_chart(fig_satisfaction, use_container_width=True)
-    
-    # Intégrer le formulaire KoboToolbox
-    st.markdown("---")
-    st.markdown("### 🌐 Formulaire KoboToolbox")
-    
+# 🔁 Section d'évaluation externe avec iframe + fallback
+st.markdown("---")
+st.markdown("### 🌐 Formulaire KoboToolbox")
+
+try:
     components.html("""
         <div style='text-align: center; margin: 2rem 0;'>
             <h4>Évaluez cette application sur KoboToolbox</h4>
             <p>Votre feedback détaillé nous aide à améliorer l'application.</p>
-            <iframe src=https://ee.kobotoolbox.org/i/fBmPGz9P width="800" height="600"></iframe>
+            <iframe src='https://ee.kobotoolbox.org/i/fBmPGz9P' width="800" height="600"></iframe>
         </div>
     """, height=650)
+except:
+    st.warning("⚠️ Le formulaire intégré n'a pas pu s'afficher. Cliquez ci-dessous pour y accéder :")
+    st.markdown("[📝 Accéder au formulaire KoboToolbox](https://ee.kobotoolbox.org/i/fBmPGz9P)", unsafe_allow_html=True)
+
 
 # Footer
 st.markdown("---")
